@@ -8,6 +8,13 @@ import pillow_heif
 import winreg
 import threading
 import queue
+import ctypes
+
+def is_admin():
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
 
 def convert_heic_to_png(heic_path):
     try:
@@ -30,7 +37,7 @@ class WinHeicToPngGUI:
     def __init__(self, master):
         self.master = master
         master.title("WinHeicToPng")
-        master.geometry("400x300")
+        master.geometry("400x350")
 
         self.label = tk.Label(master, text="拖放 HEIC 文件到这里或点击添加文件按钮")
         self.label.pack(pady=10)
@@ -38,11 +45,17 @@ class WinHeicToPngGUI:
         self.file_listbox = tk.Listbox(master, width=50, height=10)
         self.file_listbox.pack(pady=10)
 
-        self.add_button = tk.Button(master, text="添加文件", command=self.add_files)
-        self.add_button.pack(side=tk.LEFT, padx=10)
+        button_frame = tk.Frame(master)
+        button_frame.pack(fill=tk.X, padx=10, pady=5)
 
-        self.convert_button = tk.Button(master, text="转换", command=self.start_conversion)
-        self.convert_button.pack(side=tk.RIGHT, padx=10)
+        self.add_button = tk.Button(button_frame, text="添加文件", command=self.add_files)
+        self.add_button.pack(side=tk.LEFT, padx=5)
+
+        self.convert_button = tk.Button(button_frame, text="转换", command=self.start_conversion)
+        self.convert_button.pack(side=tk.LEFT, padx=5)
+
+        self.register_button = tk.Button(button_frame, text="注册", command=self.register_context_menu)
+        self.register_button.pack(side=tk.RIGHT, padx=5)
 
         self.progress_var = tk.StringVar()
         self.progress_label = tk.Label(master, textvariable=self.progress_var)
@@ -98,19 +111,23 @@ class WinHeicToPngGUI:
             if file.lower().endswith('.heic'):
                 self.file_listbox.insert(tk.END, file)
 
-def add_context_menu():
-    try:
-        key_path = r'*\shell\HeicToPng'
-        winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, key_path)
-        key = winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, key_path, 0, winreg.KEY_ALL_ACCESS)
-        winreg.SetValueEx(key, '', 0, winreg.REG_SZ, 'Convert to PNG')
-        winreg.SetValueEx(key, 'Icon', 0, winreg.REG_SZ, sys.executable)
-        command_key = winreg.CreateKey(key, 'command')
-        winreg.SetValueEx(command_key, '', 0, winreg.REG_SZ, f'"{sys.executable}" "{__file__}" "%1"')
-        winreg.CloseKey(key)
-        print("Context menu added successfully")
-    except Exception as e:
-        print(f"Error adding context menu: {str(e)}")
+    def register_context_menu(self):
+        if not is_admin():
+            messagebox.showerror("错误", "注册右键菜单需要管理员权限。请以管理员身份运行此程序。")
+            return
+
+        try:
+            key_path = r'*\shell\HeicToPng'
+            winreg.CreateKey(winreg.HKEY_CLASSES_ROOT, key_path)
+            key = winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, key_path, 0, winreg.KEY_ALL_ACCESS)
+            winreg.SetValueEx(key, '', 0, winreg.REG_SZ, 'Convert to PNG')
+            winreg.SetValueEx(key, 'Icon', 0, winreg.REG_SZ, sys.executable)
+            command_key = winreg.CreateKey(key, 'command')
+            winreg.SetValueEx(command_key, '', 0, winreg.REG_SZ, f'"{sys.executable}" "{__file__}" "%1"')
+            winreg.CloseKey(key)
+            messagebox.showinfo("成功", "右键菜单已成功注册")
+        except Exception as e:
+            messagebox.showerror("错误", f"注册右键菜单时出错：{str(e)}")
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
@@ -121,10 +138,3 @@ if __name__ == '__main__':
         root = TkinterDnD.Tk()
         gui = WinHeicToPngGUI(root)
         root.mainloop()
-
-    # Add context menu on first run
-    if not os.path.exists(os.path.join(os.getenv('APPDATA'), 'WinHeicToPng', 'installed')):
-        add_context_menu()
-        os.makedirs(os.path.join(os.getenv('APPDATA'), 'WinHeicToPng'), exist_ok=True)
-        with open(os.path.join(os.getenv('APPDATA'), 'WinHeicToPng', 'installed'), 'w') as f:
-            f.write('installed')
