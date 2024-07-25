@@ -2,6 +2,7 @@ import os
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from tkinterdnd2 import DND_FILES, TkinterDnD
 from PIL import Image
 import winreg
 
@@ -20,7 +21,7 @@ class WinHeicToPngGUI:
         master.title("WinHeicToPng")
         master.geometry("400x300")
 
-        self.label = tk.Label(master, text="点击添加文件按钮选择HEIC文件")
+        self.label = tk.Label(master, text="拖放 HEIC 文件到这里或点击添加文件按钮")
         self.label.pack(pady=10)
 
         self.file_listbox = tk.Listbox(master, width=50, height=10)
@@ -31,6 +32,10 @@ class WinHeicToPngGUI:
 
         self.convert_button = tk.Button(master, text="转换", command=self.convert_files)
         self.convert_button.pack(side=tk.RIGHT, padx=10)
+
+        # 设置拖放
+        self.file_listbox.drop_target_register(DND_FILES)
+        self.file_listbox.dnd_bind('<<Drop>>', self.drop)
 
     def add_files(self):
         files = filedialog.askopenfilenames(filetypes=[("HEIC files", "*.heic")])
@@ -43,6 +48,12 @@ class WinHeicToPngGUI:
             convert_heic_to_png(file)
         self.file_listbox.delete(0, tk.END)
         messagebox.showinfo("转换完成", "所有文件已成功转换")
+
+    def drop(self, event):
+        files = self.file_listbox.tk.splitlist(event.data)
+        for file in files:
+            if file.lower().endswith('.heic'):
+                self.file_listbox.insert(tk.END, file)
 
 def add_context_menu():
     try:
@@ -64,7 +75,7 @@ if __name__ == '__main__':
         convert_heic_to_png(sys.argv[1])
     else:
         # Run GUI
-        root = tk.Tk()
+        root = TkinterDnD.Tk()
         gui = WinHeicToPngGUI(root)
         root.mainloop()
 
