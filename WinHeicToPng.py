@@ -8,6 +8,8 @@ import winreg
 import threading
 import queue
 import ctypes
+import socket
+import json
 
 def is_admin():
     try:
@@ -117,17 +119,60 @@ class WinHeicToPngGUI:
             winreg.SetValueEx(key, '', 0, winreg.REG_SZ, 'Convert to PNG')
             winreg.SetValueEx(key, 'Icon', 0, winreg.REG_SZ, sys.executable)
             command_key = winreg.CreateKey(key, 'command')
-            launcher_path = os.path.join(os.path.dirname(sys.executable), 'WinHeicToPngLauncher.exe')
-            winreg.SetValueEx(command_key, '', 0, winreg.REG_SZ, f'"{launcher_path}" "%1"')
+            winreg.SetValueEx(command_key, '', 0, winreg.REG_SZ, f'"{sys.executable}" "%1"')
             winreg.CloseKey(key)
             messagebox.showinfo("成功", "右键菜单已成功注册")
         except Exception as e:
             messagebox.showerror("错误", f"注册右键菜单时出错：{str(e)}")
 
+def send_files_to_running_instance(files):
+    try:
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.connect(('localhost', 12345))
+        client.send(json.dumps(files).encode())
+        client.close()
+        return True
+    except:
+        return False
+
+def start_server(gui):
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(('localhost', 12345))
+    server.listen(1)
+    server.settimeout(1)  # Set a timeout to allow checking for application exit
+
+    while True:
+        try:
+            client, addr = server.accept()
+            data = client.recv(4096).decode()
+            files = json.loads(data)
+            for file in files:
+                if file.lower().endswith('.heic'):
+                    gui.file_listbox.insert(tk.END, file)
+            client.close()
+        except socket.timeout:
+            # Check if application is still running
+            if not gui.master.winfo_exists():
+                break
+        except:
+            pass
+
 def main():
     files = [arg for arg in sys.argv[1:] if arg.lower().endswith('.heic')]
+    
+    # Try to send files to running instance
+    if send_files_to_running_instance(files):
+        print("Files sent to running instance")
+        return
+
+    # If sending failed, start a new instance
     root = tk.Tk()
     gui = WinHeicToPngGUI(root, files)
+    
+    # Start server in a separate thread
+    server_thread = threading.Thread(target=start_server, args=(gui,), daemon=True)
+    server_thread.start()
+
     root.mainloop()
 
 if __name__ == '__main__':
