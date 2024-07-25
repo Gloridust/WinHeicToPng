@@ -2,7 +2,6 @@ import os
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from tkinterdnd2 import DND_FILES, TkinterDnD
 from PIL import Image
 import pillow_heif
 import winreg
@@ -39,7 +38,7 @@ class WinHeicToPngGUI:
         master.title("WinHeicToPng")
         master.geometry("400x350")
 
-        self.label = tk.Label(master, text="拖放 HEIC 文件到这里或点击添加文件按钮")
+        self.label = tk.Label(master, text="点击添加文件按钮选择HEIC文件")
         self.label.pack(pady=10)
 
         self.file_listbox = tk.Listbox(master, width=50, height=10)
@@ -60,10 +59,6 @@ class WinHeicToPngGUI:
         self.progress_var = tk.StringVar()
         self.progress_label = tk.Label(master, textvariable=self.progress_var)
         self.progress_label.pack(pady=10)
-
-        # 设置拖放
-        self.file_listbox.drop_target_register(DND_FILES)
-        self.file_listbox.dnd_bind('<<Drop>>', self.drop)
 
         # 用于线程间通信的队列
         self.queue = queue.Queue()
@@ -105,12 +100,6 @@ class WinHeicToPngGUI:
         except queue.Empty:
             self.master.after(100, self.check_queue)
 
-    def drop(self, event):
-        files = self.file_listbox.tk.splitlist(event.data)
-        for file in files:
-            if file.lower().endswith('.heic'):
-                self.file_listbox.insert(tk.END, file)
-
     def register_context_menu(self):
         if not is_admin():
             messagebox.showerror("错误", "注册右键菜单需要管理员权限。请以管理员身份运行此程序。")
@@ -135,6 +124,6 @@ if __name__ == '__main__':
         print(convert_heic_to_png(sys.argv[1]))
     else:
         # Run GUI
-        root = TkinterDnD.Tk()
+        root = tk.Tk()
         gui = WinHeicToPngGUI(root)
         root.mainloop()
