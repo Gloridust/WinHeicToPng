@@ -117,7 +117,7 @@ class WinHeicToPngGUI:
             winreg.SetValueEx(key, '', 0, winreg.REG_SZ, 'Convert to PNG')
             winreg.SetValueEx(key, 'Icon', 0, winreg.REG_SZ, sys.executable)
             command_key = winreg.CreateKey(key, 'command')
-            winreg.SetValueEx(command_key, '', 0, winreg.REG_SZ, f'"{sys.executable}" "{__file__}" "%1"')
+            winreg.SetValueEx(command_key, '', 0, winreg.REG_SZ, f'"{sys.executable}" "{__file__}" "%V"')
             winreg.CloseKey(key)
             messagebox.showinfo("成功", "右键菜单已成功注册")
         except Exception as e:
@@ -125,15 +125,19 @@ class WinHeicToPngGUI:
 
 def main():
     if len(sys.argv) > 1:
-        # 如果有命令行参数，打开GUI并加载这些文件
-        root = tk.Tk()
-        gui = WinHeicToPngGUI(root, sys.argv[1:])
-        root.mainloop()
+        # 如果有命令行参数，解析所有文件路径
+        files = []
+        for arg in sys.argv[1:]:
+            # 移除引号
+            arg = arg.strip('"')
+            if os.path.isfile(arg) and arg.lower().endswith('.heic'):
+                files.append(arg)
     else:
-        # 如果没有命令行参数，正常打开GUI
-        root = tk.Tk()
-        gui = WinHeicToPngGUI(root)
-        root.mainloop()
+        files = []
+
+    root = tk.Tk()
+    gui = WinHeicToPngGUI(root, files)
+    root.mainloop()
 
 if __name__ == '__main__':
     main()
