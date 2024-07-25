@@ -4,11 +4,20 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from tkinterdnd2 import DND_FILES, TkinterDnD
 from PIL import Image
+import pillow_heif
 import winreg
 
 def convert_heic_to_png(heic_path):
     try:
-        image = Image.open(heic_path)
+        heif_file = pillow_heif.read_heif(heic_path)
+        image = Image.frombytes(
+            heif_file.mode, 
+            heif_file.size, 
+            heif_file.data,
+            "raw",
+            heif_file.mode,
+            heif_file.stride,
+        )
         png_path = os.path.splitext(heic_path)[0] + '.png'
         image.save(png_path, 'PNG')
         print(f"Converted {heic_path} to {png_path}")
