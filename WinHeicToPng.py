@@ -33,7 +33,7 @@ def convert_heic_to_png(heic_path):
         return f"Error converting {heic_path}: {str(e)}"
 
 class WinHeicToPngGUI:
-    def __init__(self, master):
+    def __init__(self, master, initial_files=[]):
         self.master = master
         master.title("WinHeicToPng")
         master.geometry("400x350")
@@ -62,6 +62,11 @@ class WinHeicToPngGUI:
 
         # 用于线程间通信的队列
         self.queue = queue.Queue()
+
+        # 添加初始文件
+        for file in initial_files:
+            if file.lower().endswith('.heic'):
+                self.file_listbox.insert(tk.END, file)
 
     def add_files(self):
         files = filedialog.askopenfilenames(filetypes=[("HEIC files", "*.heic")])
@@ -118,12 +123,17 @@ class WinHeicToPngGUI:
         except Exception as e:
             messagebox.showerror("错误", f"注册右键菜单时出错：{str(e)}")
 
-if __name__ == '__main__':
+def main():
     if len(sys.argv) > 1:
-        # Convert file from context menu
-        print(convert_heic_to_png(sys.argv[1]))
+        # 如果有命令行参数，打开GUI并加载这些文件
+        root = tk.Tk()
+        gui = WinHeicToPngGUI(root, sys.argv[1:])
+        root.mainloop()
     else:
-        # Run GUI
+        # 如果没有命令行参数，正常打开GUI
         root = tk.Tk()
         gui = WinHeicToPngGUI(root)
         root.mainloop()
+
+if __name__ == '__main__':
+    main()
