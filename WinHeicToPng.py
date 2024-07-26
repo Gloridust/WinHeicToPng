@@ -2,13 +2,14 @@ import os
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox
-from tkinterdnd2 import DND_FILES, TkinterDnD
 from PIL import Image
 import pillow_heif
 import winreg
 import threading
 import queue
 import ctypes
+import socket
+import json
 
 def is_admin():
     try:
@@ -34,12 +35,12 @@ def convert_heic_to_png(heic_path):
         return f"Error converting {heic_path}: {str(e)}"
 
 class WinHeicToPngGUI:
-    def __init__(self, master):
+    def __init__(self, master, initial_files=[]):
         self.master = master
         master.title("WinHeicToPng")
         master.geometry("400x350")
 
-        self.label = tk.Label(master, text="拖放 HEIC 文件到这里或点击添加文件按钮")
+        self.label = tk.Label(master, text="点击添加文件按钮选择HEIC文件")
         self.label.pack(pady=10)
 
         self.file_listbox = tk.Listbox(master, width=50, height=10)
@@ -61,12 +62,13 @@ class WinHeicToPngGUI:
         self.progress_label = tk.Label(master, textvariable=self.progress_var)
         self.progress_label.pack(pady=10)
 
-        # 设置拖放
-        self.file_listbox.drop_target_register(DND_FILES)
-        self.file_listbox.dnd_bind('<<Drop>>', self.drop)
-
         # 用于线程间通信的队列
         self.queue = queue.Queue()
+
+        # 添加初始文件
+        for file in initial_files:
+            if file.lower().endswith('.heic'):
+                self.file_listbox.insert(tk.END, file)
 
     def add_files(self):
         files = filedialog.askopenfilenames(filetypes=[("HEIC files", "*.heic")])
@@ -105,12 +107,6 @@ class WinHeicToPngGUI:
         except queue.Empty:
             self.master.after(100, self.check_queue)
 
-    def drop(self, event):
-        files = self.file_listbox.tk.splitlist(event.data)
-        for file in files:
-            if file.lower().endswith('.heic'):
-                self.file_listbox.insert(tk.END, file)
-
     def register_context_menu(self):
         if not is_admin():
             messagebox.showerror("错误", "注册右键菜单需要管理员权限。请以管理员身份运行此程序。")
@@ -123,18 +119,61 @@ class WinHeicToPngGUI:
             winreg.SetValueEx(key, '', 0, winreg.REG_SZ, 'Convert to PNG')
             winreg.SetValueEx(key, 'Icon', 0, winreg.REG_SZ, sys.executable)
             command_key = winreg.CreateKey(key, 'command')
-            winreg.SetValueEx(command_key, '', 0, winreg.REG_SZ, f'"{sys.executable}" "{__file__}" "%1"')
+            winreg.SetValueEx(command_key, '', 0, winreg.REG_SZ, f'"{sys.executable}" "%1"')
             winreg.CloseKey(key)
             messagebox.showinfo("成功", "右键菜单已成功注册")
         except Exception as e:
             messagebox.showerror("错误", f"注册右键菜单时出错：{str(e)}")
 
+def send_files_to_running_instance(files):
+    try:
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client.connect(('localhost', 12345))
+        client.send(json.dumps(files).encode())
+        client.close()
+        return True
+    except:
+        return False
+
+def start_server(gui):
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind(('localhost', 12345))
+    server.listen(1)
+    server.settimeout(1)  # Set a timeout to allow checking for application exit
+
+    while True:
+        try:
+            client, addr = server.accept()
+            data = client.recv(4096).decode()
+            files = json.loads(data)
+            for file in files:
+                if file.lower().endswith('.heic'):
+                    gui.file_listbox.insert(tk.END, file)
+            client.close()
+        except socket.timeout:
+            # Check if application is still running
+            if not gui.master.winfo_exists():
+                break
+        except:
+            pass
+
+def main():
+    files = [arg for arg in sys.argv[1:] if arg.lower().endswith('.heic')]
+    
+    # Try to send files to running instance
+    if send_files_to_running_instance(files):
+        print("Files sent to running instance")
+        return
+
+    # If sending failed, start a new instance
+    root = tk.Tk()
+    gui = WinHeicToPngGUI(root, files)
+    
+    # Start server in a separate thread
+    server_thread = threading.Thread(target=start_server, args=(gui,), daemon=True)
+    server_thread.start()
+
+    root.mainloop()
+
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        # Convert file from context menu
-        print(convert_heic_to_png(sys.argv[1]))
-    else:
-        # Run GUI
-        root = TkinterDnD.Tk()
-        gui = WinHeicToPngGUI(root)
-        root.mainloop()
+    main()
